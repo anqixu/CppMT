@@ -1,6 +1,14 @@
+# Bootstrapping for Object Detection Networks (e.g. YOLO)
+
+* Compile CMT: `mkdir build; cd build; cmake ..; make; cd ..`
+* Convert source video to decent-sized resolution (-s argument) and remove sound (-an argument), e.g. using avconv: `avconv -i video.orig.mp4 -s 480x270 -an video.480_270.mp4`
+* Use CMT to generate bounding box proposals: `./build/cmt --image-header /path/to/dir --bbox-log /path/to/dir/bbox_list.txt /path/to/vid/video.480_270.mp4`
+* (OPTIONAL) Edit via GUI or manually the bounding box list file
+* Convert to MRL pickle format: `./scripts/bbox_list_to_mrl_pkl.py /path/to/dir/bbox_list.txt`
+
 # Introduction
 CppMT is a method for visual object tracking.
-It is the C++ implementation of CMT that was originally developed in Python by myself.
+It is the C++ implementation of CMT that was originally developed in Python by the original author.
 Details can be found on the [project page](http://www.gnebehay.com/cmt).
 The implementation in this repository is platform-independent and runs
 on Linux, Windows and OS X.

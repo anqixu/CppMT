@@ -5,6 +5,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <cstdio>
@@ -25,6 +26,7 @@ using std::cerr;
 using std::istream;
 using std::ifstream;
 using std::stringstream;
+using std::ostringstream;
 using std::ofstream;
 using std::cout;
 using std::min_element;
@@ -32,6 +34,9 @@ using std::max_element;
 using std::endl;
 using ::atof;
 
+ofstream log_file;
+string save_images_header;
+static int IMAGE_ID = 0;
 static string WIN_NAME = "CMT";
 static string OUT_FILE_COL_HEADERS =
     "Frame,Timestamp (ms),Active points,"\
@@ -60,6 +65,19 @@ vector<float> getNextLineAndSplitIntoFloats(istream& str)
 
 int display(Mat im, CMT & cmt)
 {
+    //Save image
+    if (save_images_header.size() > 0) {
+        ostringstream oss;
+        oss << save_images_header << "/frame_" << std::setfill('0') << std::setw(6) << IMAGE_ID << ".png";
+        imwrite(oss.str(), im);
+        if (log_file.is_open()) {
+            log_file << oss.str() << endl;
+        } else {
+            cout << oss.str() << endl;
+        }
+        IMAGE_ID += 1;
+    }
+
     //Visualize the output
     //It is ok to draw on im itself, as CMT only uses the grayscale image
     for(size_t i = 0; i < cmt.points_active.size(); i++)
@@ -68,15 +86,33 @@ int display(Mat im, CMT & cmt)
     }
 
     Point2f vertices[4];
+    int min_x, max_x, min_y, max_y;
     cmt.bb_rot.points(vertices);
     for (int i = 0; i < 4; i++)
     {
+        if (i == 0) {
+            min_x = vertices[i].x;
+            max_x = vertices[i].x;
+            min_y = vertices[i].y;
+            max_y = vertices[i].y;
+        } else {
+            if (vertices[i].x < min_x) { min_x = vertices[i].x; }
+            if (vertices[i].x > max_x) { max_x = vertices[i].x; }
+            if (vertices[i].y < min_y) { min_y = vertices[i].y; }
+            if (vertices[i].y > max_y) { max_y = vertices[i].y; }
+        }
         line(im, vertices[i], vertices[(i+1)%4], Scalar(255,0,0));
+    }
+
+    if (log_file.is_open()) {
+        log_file << "  " << min_x << ", " << min_y << ", " << max_x << ", " << max_y << ", CMT_TARGET" << endl;
+    } else {
+        cout << "  " << min_x << ", " << min_y << ", " << max_x << ", " << max_y << ", CMT_TARGET" << endl;
     }
 
     imshow(WIN_NAME, im);
 
-    return waitKey(5);
+    return waitKey(1);
 }
 
 string write_rotated_rect(RotatedRect rect)
@@ -125,6 +161,8 @@ int main(int argc, char **argv)
     const int skip_cmd = 1005;
     const int skip_msecs_cmd = 1006;
     const int output_file_cmd = 1007;
+    const int save_images_cmd = 1008;
+    const int bbox_log_cmd = 1009;
 
     struct option longopts[] =
     {
@@ -141,6 +179,8 @@ int main(int argc, char **argv)
         {"output-file", required_argument, 0, output_file_cmd},
         {"skip", required_argument, 0, skip_cmd},
         {"skip-msecs", required_argument, 0, skip_msecs_cmd},
+        {"image-header", required_argument, 0, save_images_cmd},
+        {"bbox-log", required_argument, 0, bbox_log_cmd},
         {0, 0, 0, 0}
     };
 
@@ -174,6 +214,12 @@ int main(int argc, char **argv)
                 break;
             case descriptor_cmd:
                 cmt.str_descriptor = optarg;
+                break;
+            case save_images_cmd:
+                save_images_header = optarg;
+                break;
+            case bbox_log_cmd:
+                log_file.open(optarg, std::ios::out);
                 break;
             case output_file_cmd:
                 output_path = optarg;
@@ -314,7 +360,7 @@ int main(int argc, char **argv)
     //Normal mode
 
     //Create window
-    namedWindow(WIN_NAME);
+    namedWindow(WIN_NAME, cv::WINDOW_NORMAL);
 
     VideoCapture cap;
 
@@ -442,7 +488,6 @@ int main(int argc, char **argv)
         }
         else
         {
-            //TODO: Provide meaningful output
             FILE_LOG(logINFO) << "#" << frame << " active: " << cmt.points_active.size();
         }
 
